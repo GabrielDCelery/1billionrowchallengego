@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -53,6 +54,18 @@ func main() {
 }
 
 func parse(chunk []byte) (int, error) {
-	fmt.Println(string(chunk))
-	return len(chunk), nil
+	numOfBytesParsed := 0
+	for {
+		lineEnd, isCompleteLine := findNextCRLF(chunk[numOfBytesParsed:])
+		if !isCompleteLine {
+			return numOfBytesParsed, nil
+		}
+		fmt.Println(string(chunk[numOfBytesParsed : numOfBytesParsed+lineEnd]))
+		numOfBytesParsed += lineEnd + 1
+	}
+}
+
+func findNextCRLF(chunk []byte) (int, bool) {
+	i := bytes.Index(chunk, []byte("\n"))
+	return i, i != -1
 }
