@@ -27,14 +27,14 @@ func main() {
 
 		validBytesInBuffer += numOfBytesRead
 
-		if validBytesInBuffer > bufferSize-1 {
+		if validBytesInBuffer >= bufferSize {
 			log.Fatalf("exceeded buffer size of %d", bufferSize)
 		}
 
 		numOfBytesParsed, errParse := parse(buffer[:validBytesInBuffer])
 
 		if errParse != nil {
-			log.Fatalf("failed ot parse")
+			log.Fatalf("failed to parse")
 		}
 
 		if numOfBytesParsed > 0 {
@@ -47,7 +47,7 @@ func main() {
 		}
 
 		if errRead != nil {
-			log.Fatalf("failed to read file, reason: %v", err)
+			log.Fatalf("failed to read file, reason: %v", errRead)
 		}
 	}
 }
