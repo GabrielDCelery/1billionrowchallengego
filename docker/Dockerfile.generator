@@ -1,0 +1,20 @@
+FROM ubuntu:24.04
+
+RUN apt update 
+RUN apt install git -y
+RUN apt install openjdk-21-jdk -y
+
+ARG WORKDIR=/app/1brc
+ENV BRC_NUM_OF_ROWS=1000000000
+
+RUN mkdir -p ${WORKDIR}
+
+RUN git clone https://github.com/gunnarmorling/1brc ${WORKDIR}
+
+WORKDIR ${WORKDIR}
+
+RUN ./mvnw clean verify
+
+RUN chmod -R 777 ${WORKDIR}
+
+CMD ["sh", "-c", "./create_measurements.sh $BRC_NUM_OF_ROWS && cp ./measurements.txt /srv"]
