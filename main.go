@@ -2,13 +2,12 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"os"
 )
 
-const bufferSize = 2048
+const bufferSize = 128 * 1024
 
 func main() {
 	filePath := "./measurements.txt"
@@ -28,10 +27,6 @@ func main() {
 
 		validBytesInBuffer += numOfBytesRead
 
-		if validBytesInBuffer >= bufferSize {
-			log.Fatalf("exceeded buffer size of %d", bufferSize)
-		}
-
 		numOfBytesParsed, errParse := parse(buffer[:validBytesInBuffer])
 
 		if errParse != nil {
@@ -41,6 +36,10 @@ func main() {
 		if numOfBytesParsed > 0 {
 			copy(buffer, buffer[numOfBytesParsed:validBytesInBuffer])
 			validBytesInBuffer -= numOfBytesParsed
+		}
+
+		if numOfBytesParsed == 0 && validBytesInBuffer >= bufferSize {
+			log.Fatalf("line exceeds buffer size of %d bytes", bufferSize)
 		}
 
 		if errRead == io.EOF {
@@ -60,7 +59,7 @@ func parse(chunk []byte) (int, error) {
 		if !isCompleteLine {
 			return numOfBytesParsed, nil
 		}
-		fmt.Println(string(chunk[numOfBytesParsed : numOfBytesParsed+lineEnd]))
+		// fmt.Println(string(chunk[numOfBytesParsed : numOfBytesParsed+lineEnd]))
 		numOfBytesParsed += lineEnd + 1
 	}
 }
