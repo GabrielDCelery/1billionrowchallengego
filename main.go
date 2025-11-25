@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"sort"
 	"sync"
 )
@@ -27,6 +28,14 @@ type StationAggregate struct {
 }
 
 func main() {
+	f, err := os.Create("./cpu.prof")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+
 	var wg sync.WaitGroup
 	filePath := "./measurements.txt"
 	file, err := os.Open(filePath)
