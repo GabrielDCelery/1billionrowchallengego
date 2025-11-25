@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"runtime"
 	"sync"
 )
 
@@ -38,7 +39,7 @@ func main() {
 	sdChan := make(chan StationData)
 	sdAggregateMapChan := make(chan map[string]*StationAggregate)
 
-	for range 10 {
+	for range runtime.NumCPU() {
 		wg.Add(1)
 		go worker(sdChan, sdAggregateMapChan, &wg)
 	}
