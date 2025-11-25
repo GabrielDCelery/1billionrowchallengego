@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"sync"
 )
@@ -108,8 +109,6 @@ func main() {
 		maxTmp := float64(agg.max) / 10
 		fmt.Printf("%s=%.1f/%.1f/%.1f\n", name, minTmp, avgTmp, maxTmp)
 	}
-
-	wg.Wait()
 }
 
 func parse(chunk []byte, sdChan chan StationData) (int, error) {
@@ -139,17 +138,17 @@ func worker(sdChan chan StationData, sdAggregateMapChan chan map[string]*Station
 			v = &StationAggregate{
 				total: 0,
 				count: 0,
-				min:   -1000,
-				max:   1000,
+				min:   math.MaxInt,
+				max:   math.MinInt,
 			}
 			stationAggregateMap[sd.name] = v
 		}
 		v.total += sd.temp
 		v.count += 1
-		if sd.temp > v.min {
+		if sd.temp < v.min {
 			v.min = sd.temp
 		}
-		if sd.temp < v.max {
+		if sd.temp > v.max {
 			v.max = sd.temp
 		}
 	}
