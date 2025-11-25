@@ -11,6 +11,18 @@ import (
 
 const bufferSize = 1024 * 1024
 
+type StationData struct {
+	name string
+	temp int
+}
+
+type StationAggregate struct {
+	total int
+	min   int
+	max   int
+	count int
+}
+
 func main() {
 	var wg sync.WaitGroup
 	filePath := "./measurements.txt"
@@ -22,11 +34,18 @@ func main() {
 
 	defer file.Close()
 
-	lines := make(chan []byte)
+	sdChan := make(chan StationData)
+	sdAggregateMapChan := make(chan map[string]*StationAggregate)
 
 	for range 10 {
-		go worker(lines, &wg)
+		wg.Add(1)
+		go worker(sdChan, sdAggregateMapChan, &wg)
 	}
+
+	go func() {
+		wg.Wait()
+		close(sdAggregateMapChan)
+	}()
 
 	buffer := make([]byte, bufferSize)
 
@@ -37,7 +56,7 @@ func main() {
 
 		validBytesInBuffer += numOfBytesRead
 
-		numOfBytesParsed, errParse := parse(buffer[:validBytesInBuffer], lines)
+		numOfBytesParsed, errParse := parse(buffer[:validBytesInBuffer], sdChan)
 
 		if errParse != nil {
 			log.Fatalf("failed to parse")
@@ -61,19 +80,47 @@ func main() {
 		}
 	}
 
+	close(sdChan)
+
+	allStations := map[string]*StationAggregate{}
+
+	for sdAggregate := range sdAggregateMapChan {
+		for stationName, aggr := range sdAggregate {
+			existing, ok := allStations[stationName]
+			if !ok {
+				allStations[stationName] = aggr
+			} else {
+				existing.total += aggr.total
+				existing.count += aggr.count
+				if aggr.min < existing.min {
+					existing.min = aggr.min
+				}
+				if aggr.max > existing.max {
+					existing.max = aggr.max
+				}
+			}
+		}
+	}
+
+	for name, agg := range allStations {
+		avgTmp := float64(agg.total) / float64(agg.count) / 10
+		minTmp := float64(agg.min) / 10
+		maxTmp := float64(agg.max) / 10
+		fmt.Printf("%s=%.1f/%.1f/%.1f\n", name, minTmp, avgTmp, maxTmp)
+	}
+
 	wg.Wait()
 }
 
-func parse(chunk []byte, lines chan []byte) (int, error) {
+func parse(chunk []byte, sdChan chan StationData) (int, error) {
 	numOfBytesParsed := 0
 	for {
 		lineEnd, isCompleteLine := findNextCRLF(chunk[numOfBytesParsed:])
 		if !isCompleteLine {
 			return numOfBytesParsed, nil
 		}
-		line := make([]byte, 106)
-		copy(line, chunk[numOfBytesParsed:numOfBytesParsed+lineEnd])
-		lines <- line
+		statsionData := parseStationData(chunk[numOfBytesParsed : numOfBytesParsed+lineEnd])
+		sdChan <- statsionData
 		numOfBytesParsed += lineEnd + 1
 	}
 }
@@ -83,9 +130,52 @@ func findNextCRLF(chunk []byte) (int, bool) {
 	return i, i != -1
 }
 
-func worker(lines chan []byte, wg *sync.WaitGroup) {
+func worker(sdChan chan StationData, sdAggregateMapChan chan map[string]*StationAggregate, wg *sync.WaitGroup) {
+	stationAggregateMap := map[string]*StationAggregate{}
 	defer wg.Done()
-	for line := range lines {
-		fmt.Println(string(line))
+	for sd := range sdChan {
+		v, ok := stationAggregateMap[sd.name]
+		if !ok {
+			v = &StationAggregate{
+				total: 0,
+				count: 0,
+				min:   -1000,
+				max:   1000,
+			}
+			stationAggregateMap[sd.name] = v
+		}
+		v.total += sd.temp
+		v.count += 1
+		if sd.temp > v.min {
+			v.min = sd.temp
+		}
+		if sd.temp < v.max {
+			v.max = sd.temp
+		}
 	}
+	sdAggregateMapChan <- stationAggregateMap
+}
+
+func parseStationData(chunk []byte) StationData {
+	i := bytes.Index(chunk, []byte(";"))
+	sd := StationData{name: string(chunk[:i]), temp: parseTempAsInt(chunk[i+1:])}
+	return sd
+}
+
+func parseTempAsInt(chunk []byte) int {
+	total := 0
+	decimal := 1
+	for i := range chunk {
+		char := chunk[len(chunk)-i-1]
+		if char == '.' {
+			continue
+		}
+		if char == '-' {
+			total = -1 * total
+			break
+		}
+		total += int(char-'0') * decimal
+		decimal *= 10
+	}
+	return total
 }
