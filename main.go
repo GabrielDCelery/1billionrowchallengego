@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"sort"
 	"sync"
 )
 
@@ -104,7 +105,16 @@ func main() {
 		}
 	}
 
-	for name, agg := range allStations {
+	stationNames := make([]string, 0, len(allStations))
+
+	for name := range allStations {
+		stationNames = append(stationNames, name)
+	}
+
+	sort.Strings(stationNames)
+
+	for _, name := range stationNames {
+		agg := allStations[name]
 		avgTmp := float64(agg.total) / float64(agg.count) / 10
 		minTmp := float64(agg.min) / 10
 		maxTmp := float64(agg.max) / 10
