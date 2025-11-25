@@ -37,7 +37,7 @@ func main() {
 
 	defer file.Close()
 
-	sdChan := make(chan StationData)
+	sdChan := make(chan StationData, 10000)
 	sdAggregateMapChan := make(chan map[string]*StationAggregate)
 
 	for range runtime.NumCPU() {
