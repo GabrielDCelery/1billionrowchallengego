@@ -2,14 +2,17 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"sync"
 )
 
-const bufferSize = 128 * 1024
+const bufferSize = 1024 * 1024
 
 func main() {
+	var wg sync.WaitGroup
 	filePath := "./measurements.txt"
 	file, err := os.Open(filePath)
 
@@ -19,7 +22,14 @@ func main() {
 
 	defer file.Close()
 
+	lines := make(chan []byte)
+
+	for range 10 {
+		go worker(lines, &wg)
+	}
+
 	buffer := make([]byte, bufferSize)
+
 	validBytesInBuffer := 0
 
 	for {
@@ -27,7 +37,7 @@ func main() {
 
 		validBytesInBuffer += numOfBytesRead
 
-		numOfBytesParsed, errParse := parse(buffer[:validBytesInBuffer])
+		numOfBytesParsed, errParse := parse(buffer[:validBytesInBuffer], lines)
 
 		if errParse != nil {
 			log.Fatalf("failed to parse")
@@ -50,16 +60,20 @@ func main() {
 			log.Fatalf("failed to read file, reason: %v", errRead)
 		}
 	}
+
+	wg.Wait()
 }
 
-func parse(chunk []byte) (int, error) {
+func parse(chunk []byte, lines chan []byte) (int, error) {
 	numOfBytesParsed := 0
 	for {
 		lineEnd, isCompleteLine := findNextCRLF(chunk[numOfBytesParsed:])
 		if !isCompleteLine {
 			return numOfBytesParsed, nil
 		}
-		// fmt.Println(string(chunk[numOfBytesParsed : numOfBytesParsed+lineEnd]))
+		line := make([]byte, 106)
+		copy(line, chunk[numOfBytesParsed:numOfBytesParsed+lineEnd])
+		lines <- line
 		numOfBytesParsed += lineEnd + 1
 	}
 }
@@ -67,4 +81,11 @@ func parse(chunk []byte) (int, error) {
 func findNextCRLF(chunk []byte) (int, bool) {
 	i := bytes.Index(chunk, []byte("\n"))
 	return i, i != -1
+}
+
+func worker(lines chan []byte, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for line := range lines {
+		fmt.Println(string(line))
+	}
 }
